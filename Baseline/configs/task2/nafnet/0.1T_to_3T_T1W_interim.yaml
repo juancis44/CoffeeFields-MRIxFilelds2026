@@ -1,0 +1,48 @@
+# INTERIM config: pairing of the 3 real pro_val subjects is UNCONFIRMED
+# (0.1T ids != 3T ids; MI cannot resolve it). Until organizers confirm the
+# id mapping, train WITHOUT the ambiguous real pairs:
+#   - pretrain only on SYNTHETIC pairs (correct by construction),
+#   - validate on held-out SYNTHETIC pairs (correctly paired),
+#   - finetune disabled (finetune_epochs: 0).
+# Once the mapping is confirmed, switch back to 0.1T_to_3T_T1W.yaml.
+task: 2
+task_name: task2_0.1T_to_3T_T1W_interim
+method: nafnet
+
+model:
+  input_nc: 5
+  output_nc: 1
+  width: 32
+  enc_blk_nums: [2, 2, 4]
+  middle_blk_num: 6
+  dec_blk_nums: [2, 2, 2]
+  global_residual: true
+  drop: 0.0
+
+data:
+  modality: T1W
+  source_field: 0.1T
+  target_field: 3T
+  n_neighbors: 2
+  val_source: synthetic     # validate on correctly-paired synthetic pairs
+  synth_val_holdout: 5       # hold out 5 retro subjects for synthetic validation
+
+loss:
+  l1: 1.0
+  ssim: 1.0
+  edge: 0.1
+  lpips: 0.1
+
+train:
+  batch_size: 8
+  num_workers: 8
+  cache: true
+  amp: true
+  ema_decay: 0.999
+  wd: 1.0e-4
+  print_every: 100
+  val_every: 2
+  pretrain_epochs: 40        # only training phase in interim mode
+  pretrain_lr: 2.0e-4
+  finetune_epochs: 0         # no real pairs used (pairing unconfirmed)
+  finetune_lr: 1.0e-4

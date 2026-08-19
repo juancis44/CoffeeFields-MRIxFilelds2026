@@ -1,0 +1,21 @@
+# checkpoints / run outputs (never commit weights or predictions)
+runs/
+inference/
+logs/
+*.nii.gz
+*.npz
+
+# datasets (never commit; obtain via challenge organizers)
+MRIxFields2026_data/
+*.zip
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# env / secrets
+.env
+
+# OS
+.DS_Store

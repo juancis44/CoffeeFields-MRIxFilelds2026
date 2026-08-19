@@ -1,0 +1,44 @@
+task: 2
+task_name: task2_0.1T_to_3T_T1W
+method: nafnet
+
+model:
+  input_nc: 5            # 2K+1, must match data.n_neighbors (K=2)
+  output_nc: 1
+  width: 32
+  enc_blk_nums: [2, 2, 4]
+  middle_blk_num: 6
+  dec_blk_nums: [2, 2, 2]
+  global_residual: true
+  drop: 0.0
+
+data:
+  modality: T1W
+  source_field: 0.1T
+  target_field: 3T
+  paired_split: pro_val
+  pair_by: order          # Validating_prospective uses different ids per field -> pair by sorted order   # Training_prospective is prohibited -> use Validating_prospective as the paired set
+  n_neighbors: 2         # 2.5D: center +/- 2 -> 5 input channels
+  val_holdout: 1         # only 3 paired subjects in pro_val -> train on 2, validate on 1
+
+loss:
+  l1: 1.0                # nRMSE anchor (Charbonnier)
+  ssim: 1.0             # SSIM
+  edge: 0.1             # sharp boundaries
+  lpips: 0.1            # perceptual; keep small so nRMSE/Dice don't degrade
+
+train:
+  batch_size: 8          # fits 24 GB at ~232x192 with AMP; raise if headroom
+  num_workers: 8
+  cache: true            # RAM cache (you have 500 GB)
+  amp: true              # bf16 autocast
+  ema_decay: 0.999
+  wd: 1.0e-4
+  print_every: 100
+  val_every: 2
+  # --- pretrain on SYNTHETIC pairs (high-field degraded to 0.1T-like) ---
+  pretrain_epochs: 30    # set 0 to skip pretraining
+  pretrain_lr: 2.0e-4
+  # --- finetune on REAL 0.1T->target prospective pairs ---
+  finetune_epochs: 40
+  finetune_lr: 1.0e-4

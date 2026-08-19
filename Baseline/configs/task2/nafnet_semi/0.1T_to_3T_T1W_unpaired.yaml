@@ -1,0 +1,65 @@
+# Fase 4 (robusta) — adaptación al dominio 0.1T REAL sin destruir la reconstrucción.
+#
+# Aprendizaje de la corrida anterior (unpaired-only): sin ancla de reconstrucción
+# el modelo derivó (SSIM 0.86 -> 0.22) y el GAN colapsó (D->0). Rediseño:
+#   * ANCLA supervisada en pares SINTÉTICOS (correctos por construcción)  -> mantiene
+#     reconstrucción/intensidad (equivale a continuar el pretrain),
+#   * regularización MIND sobre el 0.1T REAL (retro_train) -> preserva anatomía del
+#     input real (adaptación de dominio) SIN necesitar target,
+#   * GAN APAGADO (adv=0) de inicio por la inestabilidad; reactivar débil luego.
+# Warm-start desde el mejor pretrain interino:
+#   python scripts/train_fase4.py --config .../0.1T_to_3T_T1W_unpaired.yaml \
+#       --init_from runs/task2_0.1T_to_3T_T1W_interim/nafnet/pretrain_ep14.pth --use_ema
+task: 2
+task_name: task2_0.1T_to_3T_T1W_da
+method: nafnet_semi
+
+model:
+  input_nc: 5
+  output_nc: 1
+  width: 32
+  enc_blk_nums: [2, 2, 4]
+  middle_blk_num: 6
+  dec_blk_nums: [2, 2, 2]
+  global_residual: true
+  drop: 0.0
+
+disc:
+  ndf: 64
+  n_layers: 3
+  gan_mode: lsgan
+
+data:
+  modality: T1W
+  source_field: 0.1T
+  target_field: 3T
+  n_neighbors: 2
+  paired_source: synthetic   # supervised anchor = correct synthetic pairs
+  val_source: synthetic
+  synth_val_holdout: 5
+
+loss:
+  l1: 1.0                    # reconstruction anchor (on synthetic pairs)
+  ssim: 1.0
+  edge: 0.1
+  lpips: 0.1
+  adv: 0.0                   # GAN OFF (collapsed before); re-enable weak (0.01-0.02) later
+  mind: 0.5                  # structure-consistency on synthetic pairs
+  mind_radius: 2
+  adv_unpaired: 0.0          # GAN OFF on real inputs too
+  mind_unpaired: 0.5         # preserve anatomy of the REAL 0.1T input (domain adaptation)
+
+train:
+  supervised: true           # synthetic-supervised anchor + real-input MIND
+  batch_size: 8
+  num_workers: 8
+  cache: true
+  amp: true
+  ema_decay: 0.999
+  wd: 1.0e-4
+  grad_clip: 1.0
+  print_every: 100
+  val_every: 2
+  finetune_epochs: 30
+  finetune_lr: 3.0e-5        # low: adapting, not training from scratch
+  disc_lr: 1.0e-5

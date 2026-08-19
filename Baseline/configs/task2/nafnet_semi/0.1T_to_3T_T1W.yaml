@@ -1,0 +1,53 @@
+task: 2
+task_name: task2_0.1T_to_3T_T1W
+method: nafnet_semi
+
+model:
+  input_nc: 5
+  output_nc: 1
+  width: 32
+  enc_blk_nums: [2, 2, 4]
+  middle_blk_num: 6
+  dec_blk_nums: [2, 2, 2]
+  global_residual: true
+  drop: 0.0
+
+disc:
+  ndf: 64
+  n_layers: 3
+  gan_mode: lsgan
+
+data:
+  modality: T1W
+  source_field: 0.1T
+  target_field: 3T
+  paired_split: pro_val
+  pair_by: order          # Validating_prospective uses different ids per field -> pair by sorted order   # Training_prospective is prohibited -> use Validating_prospective as the paired set
+  n_neighbors: 2
+  val_holdout: 1         # only 3 paired subjects in pro_val -> train on 2, validate on 1
+
+loss:
+  l1: 1.0
+  ssim: 1.0
+  edge: 0.1
+  lpips: 0.1
+  adv: 0.05             # supervised adversarial (paired)
+  mind: 0.5             # supervised structure-consistency (paired, vs target)
+  mind_radius: 2
+  adv_unpaired: 0.05    # push G(real 0.1T) toward real high-field distribution
+  mind_unpaired: 0.5    # preserve anatomy of unpaired inputs (output vs input)
+
+train:
+  batch_size: 8
+  num_workers: 8
+  cache: true
+  amp: true
+  ema_decay: 0.999
+  wd: 1.0e-4
+  print_every: 100
+  val_every: 5
+  val_lpips: true
+  # semi-supervised phase on real pairs + unpaired retrospective (warm-start from Fase 3)
+  finetune_epochs: 40
+  finetune_lr: 5.0e-5
+  disc_lr: 1.0e-4
