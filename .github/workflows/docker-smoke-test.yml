@@ -1,0 +1,64 @@
+name: Docker smoke test
+
+# Builds the Task 2 submission image and runs it end-to-end against a tiny
+# synthetic volume, on CPU (GitHub-hosted runners have no GPU). This checks
+# that the container builds, loads a checkpoint, runs the full crop -> predict
+# -> paste -> orientation -> save pipeline, and writes a valid output volume.
+# It does NOT check prediction quality -- only that nothing crashes and the
+# output is well-formed.
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "Dockerfile"
+      - ".dockerignore"
+      - "inference.py"
+      - "Baseline/mrixfields/models/nafnet.py"
+      - "Baseline/weights/**"
+      - ".github/workflows/docker-smoke-test.yml"
+      - ".github/scripts/**"
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch: {}
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python (for building the fake input / checking output)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install nibabel/numpy for the test fixture
+        run: pip install --no-cache-dir nibabel numpy
+
+      - name: Build Docker image
+        run: docker build -t mrixfields-task2:smoke .
+
+      - name: Generate synthetic smoke-test input
+        run: python .github/scripts/make_smoke_input.py smoke_input
+
+      - name: Run container (CPU) against the synthetic input
+        run: |
+          mkdir -p smoke_output
+          docker run --rm \
+            -v "$PWD/smoke_input:/input:ro" \
+            -v "$PWD/smoke_output:/output" \
+            mrixfields-task2:smoke
+
+      - name: Validate output volume
+        run: python .github/scripts/check_smoke_output.py smoke_output/T1W/0.1T_to_3T/pred/0001.nii.gz
+
+      - name: Upload output as artifact (for manual inspection)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-output
+          path: smoke_output/
+          retention-days: 7
